@@ -1,0 +1,194 @@
+Note: If ssh connection to lightning.ai cannot be established, try the below to see where the Google DNS server (8.8.8.8) is there to use.
+
+
+After bringing up the PowerShell (normal-user session) and entering WSL, check info in /etc/resolv.conf as follows:
+
+PowerShell 7.4.5
+PS C:\Users\sbbg070> wsl
+tlyim@CASS861209DT:/mnt/c/Users/sbbg070$ cat /etc/resolv.conf
+# This is /run/systemd/resolve/stub-resolv.conf managed by man:systemd-resolved(8).
+# Do not edit.
+#
+# This file might be symlinked as /etc/resolv.conf. If you're looking at
+# /etc/resolv.conf and seeing this text, you have followed the symlink.
+#
+# This is a dynamic resolv.conf file for connecting local clients to the
+# internal DNS stub resolver of systemd-resolved. This file lists all
+# configured search domains.
+#
+# Run "resolvectl status" to see details about the uplink DNS servers
+# currently in use.
+#
+# Third party programs should typically not access this file directly, but only
+# through the symlink at /etc/resolv.conf. To manage man:resolv.conf(5) in a
+# different way, replace this symlink by a static file or a different symlink.
+#
+# See man:systemd-resolved.service(8) for details about the supported modes of
+# operation for /etc/resolv.conf.
+
+nameserver 127.0.0.53
+options edns0 trust-ad
+search .
+tlyim@CASS861209DT:/mnt/c/Users/sbbg070$ resolvectl status
+Global
+           Protocols: -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+    resolv.conf mode: stub
+  Current DNS Server: 1.1.1.1
+         DNS Servers: 1.1.1.1 8.8.8.8
+Fallback DNS Servers: 8.8.4.4
+
+Link 2 (eth0)
+    Current Scopes: none
+         Protocols: -DefaultRoute -LLMNR -mDNS -DNSOverTLS DNSSEC=no/unsupported
+
+
+Ping to see if lightning.ai can be found:
+
+tlyim@CASS861209DT:/mnt/c/Users/sbbg070$ ping lightning.ai
+PING lightning.ai (104.18.26.223) 56(84) bytes of data.
+64 bytes from 104.18.26.223: icmp_seq=1 ttl=55 time=21.0 ms
+64 bytes from 104.18.26.223: icmp_seq=2 ttl=55 time=21.4 ms
+64 bytes from 104.18.26.223: icmp_seq=3 ttl=55 time=20.4 ms
+64 bytes from 104.18.26.223: icmp_seq=4 ttl=55 time=20.5 ms
+64 bytes from 104.18.26.223: icmp_seq=5 ttl=55 time=21.5 ms
+^C
+--- lightning.ai ping statistics ---
+5 packets transmitted, 5 received, 0% packet loss, time 3999ms
+rtt min/avg/max/mdev = 20.437/20.969/21.474/0.446 ms
+
+
+To connect to the Studio running RStudio Server as a container, use the below: 
+
+tlyim@CASS861209DT:/mnt/c/Users/sbbg070$ ssh -L 8787:localhost:8787 s_01j63f687gv1ap28bchr2q3s5g@ssh.lightning.ai
+
+Warning: Permanently added 'ssh.lightning.ai' (RSA) to the list of known hosts.
+
+
+
+
+
+===================================================================
+
+Enable systemd in Ubuntu WSL
+https://ubuntu.com//blog/ubuntu-wsl-enable-systemd
+
+Add the following modification to /etc/wsl.conf.
+
+[boot]
+systemd=true
+
+Then 
+- quit Docker first as it uses WSL concurrently
+- restart your instance by running wsl --shutdown in PowerShell and relaunching Ubuntu.
+
+
+===
+
+See also https://learn.microsoft.com/en-us/windows/wsl/wsl-config for other detals.
+
+===
+
+See full instructions at:
+https://www.staff.city.ac.uk/c.kloukinas/cpp/00-setup/wsl-setup.html
+
+[26 Sep 2023]
+
+
+Networking Issues – Unreachable servers
+=======================================
+If your first attempt at apt update failed due to network issues, it could be that the nameserver used to resolve server names by default is not working. The solution in 5)a works but it only works for the current session. This is because the standard WSL configuration auto-generates file /etc/resolv.conf (which contains the nameserver to use) each time WSL starts. We need to disable this behaviour in file /etc/wsl.conf
+
+So, first make a copy of /etc/wsl.conf:
+cp -p /etc/wsl.conf ~/wsl.conf-original
+cp /etc/wsl.conf ~/wsl.conf.txt
+(cd ~ ; explorer.exe wsl.conf.txt)
+
+The previous command should open notepad on the contents of wsl.conf.txt – now add the following into this file:
+[network]
+generateResolvConf = false
+
+To give you a better idea, my wsl.conf contains:
+[boot]
+systemd=true
+[network]
+generateResolvConf = false
+
+The new addition tells WSL to not generate file /etc/resolv.conf  each time it starts.
+Save file on Notepad and close Notepad. Now, copy back your local wsl.conf.txt into the system configuration:
+sudo cp -p ~/wsl.conf.txt /etc/wsl.conf
+
+Now exit from the terminal (type the command exit).
+
+Start Ubuntu again. File /etc/resolv.conf shouldn't exist at all now (WSL deleted its auto-generated version when it terminated):
+ls /etc/resolv.conf
+
+So, let's create our own that uses Google's nameserver (8.8.8.8), just like we did before (only this time our file will stay there for ever):
+echo nameserver 8.8.8.8 > ~/resolv.conf
+sudo cp ~/resolv.conf /etc/
+
+We're done! 😁 😁 😁
+
+
+
+# [network]
+# generateResolvConf = false
+nameserver 172.29.96.1
+
+
+
+Setting up WSL
+==============
+...
+Update the lists of apps – run:
+sudo apt update
+Did this command fail? (sudo asks for your Linux password) Do you get that some servers are unreachable?
+If so, run (and see below for a long-term solution to this):
+echo nameserver 8.8.8.8 > ~/resolv.conf
+sudo cp -p ~/resolv.conf /etc/
+Now, try the command (sudo apt update) again – it should work fine.
+
+Upgrade current applications:
+sudo apt -y upgrade
+
+Install a number of development applications (copy-paste till the build-essential!):
+sudo apt -y install default-jdk \
+    gcc gdb make \
+    x11-apps rxvt-unicode emacs \
+    g++ tcl tk graphviz clang \
+    automake autoconf build-essential \
+    tkcvs unzip dos2unix zip
+
+Use the commands in the previous section to install brew & gcc from brew (brew's gcc is a more recent version)
+You're good to go! 😁 😁 😁
+
+
+
+
+
+
+
+
+
+
+====
+
+below are not useful 
+
+/run/systemd/resolve/resolv.conf should not be used directly by
+           applications, but only through a symlink from /etc/resolv.conf.
+
+
+ Note that the selected mode of operation for this file is detected fully automatically, depending on whether /etc/resolv.conf
+       is a symlink to /run/systemd/resolve/resolv.conf or lists 127.0.0.53 as DNS server.
+
+
+if /etc/resolv.conf has
+
+               nameserver 127.0.0.53
+               search foobar.com barbar.com
+
+           and we look up "localhost", nss-dns will send the following queries to systemd-resolved listening on 127.0.0.53:53: first
+           "localhost.foobar.com",  then "localhost.barbar.com", and finally "localhost". If (hopefully) the first two queries fail,
+           systemd-resolved will synthesize an answer for the third query.
+
+
