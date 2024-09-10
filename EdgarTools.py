@@ -5,7 +5,8 @@ app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def __(mo):
+    mo.md("""**Note:** Look like that the marimo way of coding prohibits redefining a variable again in different cells to ensure a unique sequence of executing all previously required cells!""")
     return
 
 
@@ -93,6 +94,18 @@ def __(financials):
     financials.get_cash_flow_statement()
     financials.get_balance_sheet()
 
+    return
+
+
+@app.cell
+def __():
+    import marimo as mo
+    return mo,
+
+
+@app.cell
+def __(mo):
+    mo.md(r""" """)
     return
 
 
